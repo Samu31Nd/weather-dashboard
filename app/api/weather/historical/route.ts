@@ -6,7 +6,7 @@ import Papa from 'papaparse'
 import { HistoricalCsvRow } from '@/lib/infrastructure/historical-data.dto'
 import { mapCsvDataToDataPoints } from '@/lib/infrastructure/historical-data.mapper'
 
-const API_BASE_URL = process.env.API_URL! + 'webdl.php'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL! + 'webdl.php'
 const MOCK_CSV_PATH = path.join(process.cwd(), 'public', 'mock', 'historical-data.csv')
 
 async function fetchCsvData(url: string): Promise<string> {
