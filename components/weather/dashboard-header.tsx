@@ -2,12 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { useWeather } from './weather-provider'
-import { Sun, Moon, Radio, RefreshCw, Loader2 } from 'lucide-react'
+import { useApp } from '@/components/app-provider'
+import { Radio, RefreshCw, Loader2, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function DashboardHeader() {
-  const { data, isMetric, setIsMetric, isDark, setIsDark, refresh, isLoading, lastUpdated } = useWeather()
+  const { data, refresh, isLoading, lastUpdated } = useWeather()
+  const { t, setSidebarOpen } = useApp()
   const [displayTime, setDisplayTime] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Ensure consistent SSR/client rendering
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Update display time only on client to avoid hydration mismatch
   useEffect(() => {
@@ -16,46 +24,53 @@ export function DashboardHeader() {
     }
   }, [lastUpdated])
 
+  // Use consistent value for SSR
+  const buttonDisabled = mounted ? isLoading : false
+
   return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-      <div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Radio className="h-5 w-5 text-primary" />
+    <header className="flex items-center justify-between mb-8">
+      <div className="flex items-center gap-4">
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors lg:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <Radio className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+              {data?.station.name || t.header.weatherStation}
+            </h1>
+            {isLoading && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
           </div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            {'Weather Station'}
-          </h1>
-          {isLoading && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
+          <p className="text-muted-foreground text-sm mt-1 ml-11">
+            {displayTime
+              ? `${t.header.lastUpdated}: ${displayTime}`
+              : t.header.connecting}
+          </p>
         </div>
-        <p className="text-muted-foreground text-sm mt-1 ml-11">
-          {displayTime
-            ? `Last updated: ${displayTime}`
-            : 'Connecting...'}
-        </p>
       </div>
 
       <div className="flex items-center gap-3">
         {/* Refresh Button */}
         <button
           onClick={refresh}
-          disabled={isLoading}
+          disabled={buttonDisabled}
           className={cn(
             'rounded-lg bg-secondary p-2.5 text-muted-foreground hover:text-foreground transition-colors',
-            isLoading && 'opacity-50 cursor-not-allowed'
+            buttonDisabled && 'opacity-50 cursor-not-allowed'
           )}
-          aria-label="Refresh data"
+          aria-label={t.header.refresh}
         >
-          <RefreshCw className={cn('h-5 w-5', isLoading && 'animate-spin')} />
-        </button>
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="rounded-lg bg-secondary p-2.5 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          <RefreshCw className={cn('h-5 w-5', buttonDisabled && 'animate-spin')} />
         </button>
       </div>
     </header>

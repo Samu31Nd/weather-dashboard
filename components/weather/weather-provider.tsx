@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import type { WeatherEntity } from '@/lib/domain/weather.entity'
 import useSWR from 'swr'
 
@@ -8,10 +8,6 @@ interface WeatherContextType {
   data: WeatherEntity | null
   isLoading: boolean
   error: Error | null
-  isMetric: boolean
-  setIsMetric: (value: boolean) => void
-  isDark: boolean
-  setIsDark: (value: boolean) => void
   refresh: () => void
   lastUpdated: Date | null
 }
@@ -28,8 +24,6 @@ const fetcher = async (url: string): Promise<WeatherEntity> => {
 }
 
 export function WeatherProvider({ children }: { children: ReactNode }) {
-  const [isMetric, setIsMetric] = useState(true)
-  const [isDark, setIsDark] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   // Use SWR for data fetching with auto-refresh every 60 seconds
@@ -37,7 +31,7 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
     '/api/weather',
     fetcher,
     {
-      refreshInterval: 5 * 60 * 1000, // Refresh every 60 seconds
+      refreshInterval: 60000 * 5, // Refresh every 60 seconds
       revalidateOnFocus: true,
       dedupingInterval: 10000,
       onSuccess: () => {
@@ -50,24 +44,12 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
     mutate()
   }, [mutate])
 
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [isDark])
-
   return (
     <WeatherContext.Provider
       value={{
         data: data ?? null,
         isLoading,
         error: error ?? null,
-        isMetric,
-        setIsMetric,
-        isDark,
-        setIsDark,
         refresh,
         lastUpdated,
       }}

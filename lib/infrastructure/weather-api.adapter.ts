@@ -6,7 +6,7 @@ import type { WeatherEntity, WeatherRepository } from '../domain/weather.entity'
 import type { WeatherApiResponse } from './weather-api.dto'
 import { mapApiResponseToEntity } from './weather.mapper'
 
-const API_URL: string = process.env.API_URL!;
+const API_URL: string = process.env.API_URL! + 'wflexp.json';
 
 export class WeatherApiAdapter implements WeatherRepository {
   async fetchWeatherData(): Promise<WeatherEntity> {

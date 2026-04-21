@@ -1,8 +1,7 @@
 'use client'
 
-// TODO: Dividir en componentes mas pequeños para legibilidad
-
 import { useWeather } from './weather-provider'
+import { useApp } from '@/components/app-provider'
 import {
   formatTemperatureFromEntity,
   formatSpeedFromEntity,
@@ -57,6 +56,7 @@ function LoadingCard({ className }: { className?: string }) {
 }
 
 function ErrorCard({ className, onRetry }: { className?: string; onRetry: () => void }) {
+  const { t } = useApp()
   return (
     <GlassCard className={cn('flex flex-col items-center justify-center gap-4', className)}>
       <p className="text-muted-foreground text-sm">Failed to load data</p>
@@ -72,7 +72,8 @@ function ErrorCard({ className, onRetry }: { className?: string; onRetry: () => 
 }
 
 export function PrimaryCard() {
-  const { data, isMetric, isLoading, error, refresh } = useWeather()
+  const { data, isLoading, error, refresh } = useWeather()
+  const { isMetric, t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
@@ -86,7 +87,7 @@ export function PrimaryCard() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Current Temperature
+            {t.cards.temperature}
           </p>
           <p className="text-7xl font-light tracking-tight text-foreground mt-2">
             {formatTemperatureFromEntity(temp, isMetric)}
@@ -103,7 +104,7 @@ export function PrimaryCard() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Humidity
+              {t.cards.humidity}
             </p>
             <p className="text-xl font-medium text-foreground">
               {humidity !== null ? `${humidity}%` : '--'}
@@ -116,7 +117,7 @@ export function PrimaryCard() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Feels Like
+              {t.cards.feelsLike}
             </p>
             <p className="text-xl font-medium text-foreground">
               {formatTemperatureFromEntity(feelsLike, isMetric)}
@@ -129,7 +130,8 @@ export function PrimaryCard() {
 }
 
 export function WindCard() {
-  const { data, isMetric, isLoading, error, refresh } = useWeather()
+  const { data, isLoading, error, refresh } = useWeather()
+  const { isMetric, t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
@@ -143,7 +145,7 @@ export function WindCard() {
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Wind
+            {t.cards.wind}
           </p>
           <p className="text-4xl font-light text-foreground mt-1">
             {formatSpeedFromEntity(speed, isMetric)}
@@ -155,7 +157,7 @@ export function WindCard() {
       </div>
       <div className="flex items-center justify-between mt-4">
         <div>
-          <p className="text-xs text-muted-foreground uppercase">Gust</p>
+          <p className="text-xs text-muted-foreground uppercase">{t.cards.gust}</p>
           <p className="text-lg font-medium text-foreground">
             {formatSpeedFromEntity(gust, isMetric)}
           </p>
@@ -175,18 +177,25 @@ export function WindCard() {
 }
 
 export function BarometerCard() {
-  const { data, isMetric, isLoading, error, refresh } = useWeather()
+  const { data, isLoading, error, refresh } = useWeather()
+  const { isMetric, t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
 
   const pressure = data?.barometer.pressure ?? null
-  const trend = getBarometerTrendInfo(data?.barometer.trend ?? 20)
+  const trendInfo = getBarometerTrendInfo(data?.barometer.trend ?? 20)
+
+  const getTrendLabel = () => {
+    if (trendInfo.direction === 'up') return t.cards.rising
+    if (trendInfo.direction === 'down') return t.cards.falling
+    return t.cards.steady
+  }
 
   const TrendIcon =
-    trend.direction === 'up'
+    trendInfo.direction === 'up'
       ? TrendingUp
-      : trend.direction === 'down'
+      : trendInfo.direction === 'down'
         ? TrendingDown
         : Minus
 
@@ -195,7 +204,7 @@ export function BarometerCard() {
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Barometer
+            {t.cards.barometer}
           </p>
           <p className="text-3xl font-light text-foreground mt-1">
             {formatPressureFromEntity(pressure, isMetric)}
@@ -209,19 +218,20 @@ export function BarometerCard() {
         <TrendIcon
           className={cn(
             'h-4 w-4',
-            trend.direction === 'up' && 'text-green-500',
-            trend.direction === 'down' && 'text-red-500',
-            trend.direction === 'steady' && 'text-muted-foreground'
+            trendInfo.direction === 'up' && 'text-green-500',
+            trendInfo.direction === 'down' && 'text-red-500',
+            trendInfo.direction === 'steady' && 'text-muted-foreground'
           )}
         />
-        <span className="text-sm text-muted-foreground">{trend.label}</span>
+        <span className="text-sm text-muted-foreground">{getTrendLabel()}</span>
       </div>
     </GlassCard>
   )
 }
 
 export function RainCard() {
-  const { data, isMetric, isLoading, error, refresh } = useWeather()
+  const { data, isLoading, error, refresh } = useWeather()
+  const { isMetric, t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
@@ -235,7 +245,7 @@ export function RainCard() {
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Rainfall
+            {t.cards.rainfall}
           </p>
           <p className="text-3xl font-light text-foreground mt-1">
             {formatRainFromEntity(rate, isMetric)}
@@ -248,13 +258,13 @@ export function RainCard() {
       </div>
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
-          <p className="text-xs text-muted-foreground uppercase">Today</p>
+          <p className="text-xs text-muted-foreground uppercase">{t.cards.today}</p>
           <p className="text-lg font-medium text-foreground">
             {formatRainFromEntity(daily, isMetric)}
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground uppercase">Year</p>
+          <p className="text-xs text-muted-foreground uppercase">{t.cards.yearly}</p>
           <p className="text-lg font-medium text-foreground">
             {formatRainFromEntity(yearly, isMetric)}
           </p>
@@ -265,7 +275,8 @@ export function RainCard() {
 }
 
 export function IndoorCard() {
-  const { data, isMetric, isLoading, error, refresh } = useWeather()
+  const { data, isLoading, error, refresh } = useWeather()
+  const { isMetric, t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
@@ -278,7 +289,7 @@ export function IndoorCard() {
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Indoor
+            {t.cards.indoor}
           </p>
           <p className="text-4xl font-light text-foreground mt-1">
             {formatTemperatureFromEntity(temp, isMetric)}
@@ -293,7 +304,7 @@ export function IndoorCard() {
         <span className="text-lg font-medium text-foreground">
           {humidity !== null ? `${humidity}%` : '--'}
         </span>
-        <span className="text-sm text-muted-foreground">humidity</span>
+        <span className="text-sm text-muted-foreground">{t.cards.humidity}</span>
       </div>
     </GlassCard>
   )
@@ -301,6 +312,7 @@ export function IndoorCard() {
 
 export function AstronomyCard() {
   const { data, isLoading, error, refresh } = useWeather()
+  const { t } = useApp()
 
   if (isLoading && !data) return <LoadingCard className="h-full" />
   if (error && !data) return <ErrorCard className="h-full" onRetry={refresh} />
@@ -308,7 +320,7 @@ export function AstronomyCard() {
   return (
     <GlassCard className="h-full">
       <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider mb-4">
-        Sun Times
+        {t.cards.sunTimes}
       </p>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -316,7 +328,7 @@ export function AstronomyCard() {
             <Sunrise className="h-5 w-5 text-chart-3" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase">Sunrise</p>
+            <p className="text-xs text-muted-foreground uppercase">{t.cards.sunrise}</p>
             <p className="text-xl font-medium text-foreground">
               {data?.astronomy.sunrise || '--:--'}
             </p>
@@ -327,7 +339,7 @@ export function AstronomyCard() {
             <Sunset className="h-5 w-5 text-chart-5" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase">Sunset</p>
+            <p className="text-xs text-muted-foreground uppercase">{t.cards.sunset}</p>
             <p className="text-xl font-medium text-foreground">
               {data?.astronomy.sunset || '--:--'}
             </p>
