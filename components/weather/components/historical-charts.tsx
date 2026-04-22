@@ -180,6 +180,7 @@ export function HistoricalCharts() {
             '& .MuiChartsLegend-label': { color: `${chartColors.text} !important` },
             '& .MuiChartsAxisHighlight-root': { stroke: `${chartColors.text} !important` },
             '& .MuiChartsAxis-line': { stroke: `${chartColors.text} !important` },
+            '& .MuiChartsAxis-tickContainer': { color: `${chartColors.text} !important` },
             '& .MuiChartsAxis-tick': { stroke: `${chartColors.text} !important` },
             '.MuiChartsAxis-tickLabel': { fill: chartColors.text },
             '.MuiLineChart-mark': { fill: chartColors.grid },
