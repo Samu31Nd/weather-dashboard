@@ -8,9 +8,10 @@ import { BarChart } from '@mui/x-charts/BarChart'
 import { AlertCircle, Thermometer, Droplets, Wind, Gauge, CloudRain, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { HistoricalView, QueryMode, TemperatureEntity, WindEntity, RainEntity, PressureEntity } from '@/lib/domain/historical-weather.entity'
-import { getCachedData, setCachedData, clearAllCache, generateHistoricalCacheKey } from '@/lib/cache/cache'
+import { getCachedData, setCachedData, generateHistoricalCacheKey } from '@/lib/cache/cache'
 import { ChartQueryControls } from './chartQueryControls'
 import { useTheme } from '@mui/material/styles'
+import { format } from 'date-fns'
 
 interface ApiResponse<T> {
     total: number
@@ -47,7 +48,7 @@ function ChartCard({
         <Card className={`overflow-hidden border bg-card/60 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:bg-card/80 ${className || ''}`}>
             <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-5 px-5">
                 <div className="rounded-xl bg-primary/10 p-2.5 shadow-sm">
-                    <Icon className="h-5 w-5 text-primary" />
+                    <Icon className="size-5 text-primary" />
                 </div>
                 <div>
                     <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
@@ -189,11 +190,52 @@ export function HistoricalCharts() {
         }
     }, [selectedViews, fetchViewData])
 
-    // Handle clear cache
-    const handleClearCache = useCallback(() => {
-        clearAllCache()
-        setViewsData(new Map())
-    }, [])
+    // Download JSON
+    const handleDownloadJSON = useCallback(() => {
+        const timestamp = format(new Date(), 'yyyyMMdd_HHmmss')
+        const viewNames = selectedViews.map(v => v.replace('vw_', '')).join('-')
+
+        const exportData: Record<string, unknown[]> = {}
+        viewsData.forEach((vd, key) => {
+            exportData[key] = vd.data
+        })
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${timestamp}_dataset_${viewNames}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }, [selectedViews, viewsData])
+
+    // Download CSV from external API
+    const handleDownloadCSV = useCallback(() => {
+        const timestamp = format(new Date(), 'yyyyMMdd_HHmmss')
+        let url = process.env.NEXT_PUBLIC_API_URL! + 'webdl.php?action=text'
+
+        if (mode === 'specific_date' && specificDate) {
+            url += `&date=${specificDate}`
+        } else if (mode === 'last_n_days') {
+            url += `&days=${days}`
+        } else if (mode === 'date_range' && dateStart) {
+            // Use just the date part for the CSV API
+            const dateOnly = dateStart.split('T')[0]
+            url += `&date=${dateOnly}`
+        }
+
+        // Open in new tab - the browser will handle the download
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${timestamp}_weather_data.csv`
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+    }, [mode, specificDate, dateStart, days])
 
     // Initial fetch
     useEffect(() => {
@@ -285,6 +327,7 @@ export function HistoricalCharts() {
         viewsData.forEach(vd => { if (vd.isCached) cached = true })
         return cached
     }, [viewsData])
+    const hasData = viewsData.size > 0
 
     // Render temperature charts
     const renderTemperatureCharts = (tempData: TemperatureEntity[]) => {
@@ -520,9 +563,11 @@ export function HistoricalCharts() {
                 days={days}
                 setDays={setDays}
                 onFetch={() => fetchAllData(true)}
-                onClearCache={handleClearCache}
                 isLoading={isLoading}
                 isCached={hasCachedData}
+                hasData={hasData}
+                onDownloadCSV={handleDownloadCSV}
+                onDownloadJSON={handleDownloadJSON}
             />
 
             {/* Error state */}

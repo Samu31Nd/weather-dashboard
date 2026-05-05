@@ -2,10 +2,16 @@
 
 import { useState } from 'react'
 import { useApp } from '@/components/app-provider'
-import { Calendar, Clock, Hash, Search, Trash2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react'
+import { Calendar, Clock, Hash, Search, Trash2, ChevronDown, ChevronUp, Settings2, Download, FileJson, FileSpreadsheet } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { HistoricalView, QueryMode } from '@/lib/domain/historical-weather.entity'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
 
 interface QueryControlsProps {
     selectedViews: HistoricalView[]
@@ -21,9 +27,11 @@ interface QueryControlsProps {
     days: number
     setDays: (days: number) => void
     onFetch: () => void
-    onClearCache: () => void
+    onDownloadJSON: () => void
+    onDownloadCSV: () => void
     isLoading: boolean
     isCached: boolean
+    hasData: boolean
 }
 
 export function ChartQueryControls({
@@ -40,9 +48,11 @@ export function ChartQueryControls({
     days,
     setDays,
     onFetch,
-    onClearCache,
+    onDownloadJSON,
+    onDownloadCSV,
     isLoading,
     isCached,
+    hasData,
 }: QueryControlsProps) {
     const { t, isDark } = useApp()
     const [isCollapsed, setIsCollapsed] = useState(false)
@@ -285,17 +295,41 @@ export function ChartQueryControls({
                                 <Search className={cn('h-4 w-4', isLoading && 'animate-spin')} />
                                 {t.charts.fetchData}
                             </button>
-
-                            <button
-                                onClick={onClearCache}
-                                className={cn(
-                                    'flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all duration-200',
-                                    'bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground'
-                                )}
-                            >
-                                <Trash2 className="h-4 w-4" />
-                                {t.charts.clearCache}
-                            </button>
+                            {hasData && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="gap-2">
+                                            <Download className="size-4" />
+                                            {t.charts.download}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-52" align="start">
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-xs text-muted-foreground mb-2 font-medium px-2">
+                                                {t.charts.downloadFormat}
+                                            </p>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="justify-start gap-2"
+                                                onClick={onDownloadJSON}
+                                            >
+                                                <FileJson className="size-4" />
+                                                JSON ({t.charts.processedData})
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="justify-start gap-2"
+                                                onClick={onDownloadCSV}
+                                            >
+                                                <FileSpreadsheet className="size-4" />
+                                                CSV ({t.charts.rawData})
+                                            </Button>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
                         </div>
                     </div>
                 </CardContent>

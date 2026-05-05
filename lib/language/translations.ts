@@ -94,6 +94,10 @@ export const translations = {
       freshData: 'Fresh data',
       queryControls: 'Query Controls',
       selectMultiple: 'Select multiple',
+      download: 'Download',
+      downloadFormat: 'Format',
+      processedData: 'JSON',
+      rawData: 'CSV',
     },
     // Footer
     footer: {
@@ -198,6 +202,10 @@ export const translations = {
       freshData: 'Datos actualizados',
       queryControls: 'Controles de Consulta',
       selectMultiple: 'Seleccionar varios',
+      download: 'Descargar',
+      downloadFormat: 'Formato',
+      processedData: 'JSON',
+      rawData: 'CSV',
     },
     // Footer
     footer: {
