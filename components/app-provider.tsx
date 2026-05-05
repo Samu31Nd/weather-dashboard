@@ -29,12 +29,12 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-    const [language, setLanguage] = useState<Language>('es')
-    const [isMetric, setIsMetric] = useState(true)
+    const [language, setLanguage] = useState<Language>('en')
+    const [isMetric, setIsMetric] = useState(false)
     const [isDark, setIsDark] = useState(true)
     const [currentView, setCurrentView] = useState<View>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // Collapsed by default on desktop
 
     // Apply dark mode to document
     useEffect(() => {

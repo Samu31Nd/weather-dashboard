@@ -1,5 +1,6 @@
 'use client'
 
+import { useApp } from '../app-provider'
 import { useWeather } from './weather-provider'
 import { Wifi, Battery, Clock } from 'lucide-react'
 
@@ -12,11 +13,12 @@ function formatUptime(seconds: number): string {
 
 export function StationFooter() {
   const { data } = useWeather()
+  const { t } = useApp()
 
   if (!data) {
     return (
       <footer className="mt-8 text-center text-sm text-muted-foreground">
-        <p>Loading station information...</p>
+        <p>{t.header.connecting}</p>
       </footer>
     )
   }

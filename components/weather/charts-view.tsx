@@ -1,8 +1,8 @@
 'use client'
 
 import { useApp } from '@/components/app-provider'
-import { HistoricalCharts } from './components/historical-charts'
 import { Menu, LineChart } from 'lucide-react'
+import { HistoricalCharts } from './components/historical-charts'
 
 export function ChartsView() {
     const { t, setSidebarOpen } = useApp()

@@ -17,3 +17,6 @@ node_modules
 
 # Mock files
 mock/*
+
+GEMINI.md
+.env

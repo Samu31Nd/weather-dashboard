@@ -1,49 +1,76 @@
 'use client'
 
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useApp } from '@/components/app-provider'
-import Box from '@mui/material/Box';
+import Box from '@mui/material/Box'
 import { LineChart } from '@mui/x-charts/LineChart'
-import type { HistoricalDataPoint } from '@/lib/infrastructure/historical-data.dto'
-import useSWR from 'swr'
-import { Loader2, AlertCircle, Thermometer, Droplets, Wind, Gauge, CloudRain } from 'lucide-react'
+import { BarChart } from '@mui/x-charts/BarChart'
+import { AlertCircle, Thermometer, Droplets, Wind, Gauge, CloudRain, Loader2 } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { HistoricalView, QueryMode, TemperatureEntity, WindEntity, RainEntity, PressureEntity } from '@/lib/domain/historical-weather.entity'
+import { getCachedData, setCachedData, clearAllCache, generateHistoricalCacheKey } from '@/lib/cache/cache'
+import { ChartQueryControls } from './chartQueryControls'
 
-interface HistoricalResponse {
-    data: HistoricalDataPoint[]
+interface ApiResponse<T> {
+    total: number
+    data: T[]
     meta: {
-        date: string
-        totalPoints: number
+        view: string
+        mode: string
+        params: Record<string, unknown>
         fetchedAt: string
     }
 }
 
-const fetcher = async (url: string): Promise<HistoricalResponse> => {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Failed to fetch')
-    return res.json()
+interface ViewData {
+    view: HistoricalView
+    data: unknown[]
+    total: number
+    isCached: boolean
 }
 
 function ChartCard({
     title,
     icon: Icon,
-    children
+    children,
+    className,
+    subtitle
 }: {
     title: string
     icon: React.ElementType
     children: React.ReactNode
+    className?: string
+    subtitle?: string
 }) {
-
     return (
-        <div className='p-4 sm:p-6' >
-
-            <Box sx={{ width: '100%', height: 300 }}>
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="rounded-lg bg-primary/10 p-2">
-                        <Icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+        <Card className={`overflow-hidden border bg-card/60 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:bg-card/80 ${className || ''}`}>
+            <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-5 px-5">
+                <div className="rounded-xl bg-primary/10 p-2.5 shadow-sm">
+                    <Icon className="h-5 w-5 text-primary" />
                 </div>
-                {children}
-            </Box>
+                <div>
+                    <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+                    {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+                </div>
+            </CardHeader>
+            <CardContent className="px-2 pb-5 pt-1 sm:px-4">
+                <Box sx={{ width: '100%', height: 300 }}>
+                    {children}
+                </Box>
+            </CardContent>
+        </Card>
+    )
+}
+
+function ChartsLoadingSkeleton() {
+    return (
+        <div className="space-y-6 animate-pulse">
+            <Skeleton className="h-72 rounded-xl" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <Skeleton className="h-80 rounded-xl" />
+                <Skeleton className="h-80 rounded-xl" />
+            </div>
         </div>
     )
 }
@@ -51,312 +78,491 @@ function ChartCard({
 export function HistoricalCharts() {
     const { t, isMetric, isDark } = useApp()
 
-    const { data: response, error, isLoading } = useSWR<HistoricalResponse>(
-        '/api/weather/historical',
-        fetcher,
-        {
-            refreshInterval: 900000, // 15 minutes
-            revalidateOnFocus: false,
-        }
-    )
+    // Query state - now supports multiple views
+    const [selectedViews, setSelectedViews] = useState<HistoricalView[]>(['vw_temperatura'])
+    const [mode, setMode] = useState<QueryMode>('last_n_days')
+    const [specificDate, setSpecificDate] = useState(() => {
+        const d = new Date()
+        d.setDate(d.getDate() - 1)
+        return d.toISOString().split('T')[0]
+    })
+    const [dateStart, setDateStart] = useState(() => {
+        const d = new Date()
+        d.setDate(d.getDate() - 2)
+        return d.toISOString().slice(0, 16)
+    })
+    const [dateEnd, setDateEnd] = useState(() => {
+        const d = new Date()
+        d.setDate(d.getDate() - 1)
+        return d.toISOString().slice(0, 16)
+    })
+    const [days, setDays] = useState(1)
 
-    // MUI chart colors based on theme
+    // Data state - stores data for each view
+    const [viewsData, setViewsData] = useState<Map<HistoricalView, ViewData>>(new Map())
+    const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+
+    // Generate cache key based on current query params
+    const getCacheKey = useCallback((view: HistoricalView) => {
+        return generateHistoricalCacheKey(view, mode, {
+            specificDate: mode === 'specific_date' ? specificDate : undefined,
+            dateStart: mode === 'date_range' ? dateStart : undefined,
+            dateEnd: mode === 'date_range' ? dateEnd : undefined,
+            days: mode === 'last_n_days' ? days : undefined,
+        })
+    }, [mode, specificDate, dateStart, dateEnd, days])
+
+    // Fetch data for a single view
+    const fetchViewData = useCallback(async (view: HistoricalView, skipCache = false): Promise<ViewData | null> => {
+        const cacheKey = getCacheKey(view)
+
+        // Try to get cached data first
+        if (!skipCache) {
+            const cached = getCachedData<ApiResponse<unknown>>(cacheKey)
+            if (cached) {
+                return {
+                    view,
+                    data: cached.data,
+                    total: cached.total,
+                    isCached: true,
+                }
+            }
+        }
+
+        try {
+            const params = new URLSearchParams()
+            params.set('view', view)
+            params.set('mode', mode)
+
+            if (mode === 'specific_date') {
+                params.set('specific_date', specificDate)
+            } else if (mode === 'date_range') {
+                params.set('date_start', dateStart)
+                params.set('date_end', dateEnd)
+            } else if (mode === 'last_n_days') {
+                params.set('days', String(days))
+            }
+
+            const response = await fetch(`/api/weather/historical?${params.toString()}`)
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch data')
+            }
+
+            const result: ApiResponse<unknown> = await response.json()
+
+            // Cache the result
+            setCachedData(cacheKey, result, 6 * 60 * 60 * 1000) // 6 hours TTL
+
+            return {
+                view,
+                data: result.data,
+                total: result.total,
+                isCached: false,
+            }
+        } catch {
+            return null
+        }
+    }, [mode, specificDate, dateStart, dateEnd, days, getCacheKey])
+
+    // Fetch data for all selected views
+    const fetchAllData = useCallback(async (skipCache = false) => {
+        setIsLoading(true)
+        setError(null)
+
+        try {
+            const results = await Promise.all(
+                selectedViews.map(view => fetchViewData(view, skipCache))
+            )
+
+            const newViewsData = new Map<HistoricalView, ViewData>()
+            let hasError = false
+
+            results.forEach((result, index) => {
+                if (result) {
+                    newViewsData.set(selectedViews[index], result)
+                } else {
+                    hasError = true
+                }
+            })
+
+            if (hasError && newViewsData.size === 0) {
+                setError('Failed to fetch data')
+            } else {
+                setViewsData(newViewsData)
+                setFetchedAt(new Date().toISOString())
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
+        } finally {
+            setIsLoading(false)
+        }
+    }, [selectedViews, fetchViewData])
+
+    // Handle clear cache
+    const handleClearCache = useCallback(() => {
+        clearAllCache()
+        setViewsData(new Map())
+    }, [])
+
+    // Initial fetch
+    useEffect(() => {
+        fetchAllData()
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Chart styling
     const chartColors = {
-        primary: isDark ? '#818cf8' : '#6366f1',
-        secondary: isDark ? '#34d399' : '#10b981',
-        tertiary: isDark ? '#f472b6' : '#ec4899',
-        grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+        primary: isDark ? '#818cf8' : '#4f46e5',
+        secondary: isDark ? '#34d399' : '#059669',
+        tertiary: isDark ? '#f472b6' : '#db2777',
+        quaternary: isDark ? '#60a5fa' : '#2563eb',
+        grid: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
         text: isDark ? '#a1a1aa' : '#52525b',
     }
 
-    if (isLoading) {
+    // Check if data spans multiple days
+    const hasMultipleDays = useCallback((data: { fecha: Date; hora: string }[]): boolean => {
+        if (data.length < 2) return false
+        const dates = new Set(data.map(d => {
+            const date = new Date(d.fecha)
+            return date.toISOString().split('T')[0]
+        }))
+        return dates.size > 1
+    }, [])
+
+    // Format x-axis labels based on data span
+    const formatTimeLabels = useCallback((data: { fecha: Date; hora: string }[]): string[] => {
+        const multiDay = hasMultipleDays(data)
+
+        return data.map(d => {
+            const date = new Date(d.fecha)
+            const time = d.hora?.slice(0, 5) || ''
+
+            if (multiDay) {
+                // For multiple days: show MM/DD HH:mm
+                const month = String(date.getMonth() + 1).padStart(2, '0')
+                const day = String(date.getDate()).padStart(2, '0')
+                return `${month}/${day} ${time}`
+            }
+            // For single day: just show time
+            return time
+        })
+    }, [hasMultipleDays])
+
+    // Chart base props with tick formatting for multi-day data
+    const getChartProps = useCallback((dataLength: number, isMultiDay: boolean) => {
+        // Calculate tick interval to avoid label overlap
+        const tickInterval = isMultiDay
+            ? Math.max(1, Math.floor(dataLength / 12)) // Show ~12 labels for multi-day
+            : Math.max(1, Math.floor(dataLength / 24)) // Show ~24 labels for single day
+
+        return {
+            height: 280,
+            margin: { top: 20, right: 20, bottom: isMultiDay ? 50 : 35, left: 55 },
+            sx: {
+                '& .MuiChartsLegend-label': { fill: `${chartColors.text} !important`, fontSize: 11 },
+                '& .MuiChartsAxis-line': { stroke: `${chartColors.grid} !important` },
+                '& .MuiChartsAxis-tickLabel': {
+                    fill: `${chartColors.text} !important`,
+                    fontSize: isMultiDay ? 9 : 10,
+                },
+                '& .MuiChartsGrid-line': { stroke: chartColors.grid, strokeDasharray: '3 3' },
+                '& .MuiLineElement-root': { strokeWidth: 2.5 },
+                '& .MuiAreaElement-root': { fillOpacity: isDark ? 0.12 : 0.08 },
+            },
+            grid: { horizontal: true, vertical: false },
+            slotProps: {
+                legend: {
+                    direction: 'row' as const,
+                    position: { vertical: 'top' as const, horizontal: 'middle' as const },
+                    padding: { bottom: 16 },
+                },
+            },
+            skipAnimation: false,
+            xAxis: [{
+                scaleType: 'point' as const,
+                tickLabelStyle: isMultiDay ? { angle: -45, textAnchor: 'end' as const } : undefined,
+                tickInterval: (_: unknown, i: number) => i % tickInterval === 0,
+            }],
+        }
+    }, [chartColors, isDark])
+
+    // Calculate total records
+    const totalRecords = useMemo(() => {
+        let total = 0
+        viewsData.forEach(vd => { total += vd.total })
+        return total
+    }, [viewsData])
+
+    // Check if any data is cached
+    const hasCachedData = useMemo(() => {
+        let cached = false
+        viewsData.forEach(vd => { if (vd.isCached) cached = true })
+        return cached
+    }, [viewsData])
+
+    // Render temperature charts
+    const renderTemperatureCharts = (tempData: TemperatureEntity[]) => {
+        if (tempData.length === 0) return null
+
+        // Sample data if too many points
+        const sampledData = tempData.length > 200
+            ? tempData.filter((_, i) => i % Math.ceil(tempData.length / 200) === 0)
+            : tempData
+
+        const isMultiDay = hasMultipleDays(sampledData as unknown as { fecha: Date; hora: string }[])
+        const timeLabels = formatTimeLabels(sampledData as unknown as { fecha: Date; hora: string }[])
+        const chartProps = getChartProps(sampledData.length, isMultiDay)
+
+        // Only humidity data is available from the API
+        const outdoorHum = sampledData.map(d => d.humedad_exterior)
+        const indoorHum = sampledData.map(d => d.humedad_interior)
+
         return (
-            <div className="flex flex-col items-center justify-center min-h-100 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin mb-4" />
-                <p>{t.charts.loading}</p>
+            <div className="space-y-5">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Thermometer className="h-5 w-5 text-primary" />
+                    {t.charts.temperature}
+                </h3>
+                <ChartCard title={t.charts.humidityChart} icon={Droplets} subtitle="%">
+                    <LineChart
+                        {...chartProps}
+                        xAxis={[{ ...chartProps.xAxis[0], data: timeLabels }]}
+                        yAxis={[{ label: '%', min: 0, max: 100 }]}
+                        series={[
+                            { data: outdoorHum, label: t.charts.outdoorHumidity, color: chartColors.primary, showMark: false, curve: 'catmullRom', area: true },
+                            { data: indoorHum, label: t.charts.indoorHumidity, color: chartColors.secondary, showMark: false, curve: 'catmullRom' },
+                        ]}
+                    />
+                </ChartCard>
             </div>
         )
     }
 
-    if (error || !response?.data) {
+    // Render wind charts
+    const renderWindCharts = (windData: WindEntity[]) => {
+        if (windData.length === 0) return null
+
+        const sampledData = windData.length > 200
+            ? windData.filter((_, i) => i % Math.ceil(windData.length / 200) === 0)
+            : windData
+
+        const isMultiDay = hasMultipleDays(sampledData as unknown as { fecha: Date; hora: string }[])
+        const timeLabels = formatTimeLabels(sampledData as unknown as { fecha: Date; hora: string }[])
+        const chartProps = getChartProps(sampledData.length, isMultiDay)
+
+        const convertSpeed = (val: number | null) => {
+            if (val === null) return null
+            return isMetric ? val : val / 1.60934
+        }
+
+        const speeds = sampledData.map(d => convertSpeed(d.velocidad_kmh))
+        const gusts = sampledData.map(d => convertSpeed(d.rafaga_kmh))
+        const speedUnit = isMetric ? 'km/h' : 'mph'
+
         return (
-            <div className="flex flex-col items-center justify-center min-h-100 text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mb-4 text-destructive" />
-                <p>{t.charts.error}</p>
+            <div className="space-y-5">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Wind className="h-5 w-5 text-primary" />
+                    {t.charts.wind}
+                </h3>
+                <ChartCard title={t.charts.windChart} icon={Wind} subtitle={speedUnit}>
+                    <LineChart
+                        {...chartProps}
+                        height={320}
+                        xAxis={[{ ...chartProps.xAxis[0], data: timeLabels }]}
+                        yAxis={[{ label: speedUnit, min: 0 }]}
+                        series={[
+                            { data: gusts, label: t.charts.windGust, color: chartColors.tertiary, showMark: false, curve: 'catmullRom', area: true },
+                            { data: speeds, label: t.charts.windSpeed, color: chartColors.primary, showMark: false, curve: 'catmullRom' },
+                        ]}
+                    />
+                </ChartCard>
             </div>
         )
     }
 
-    const data = response.data
+    // Render rain charts - only accumulated
+    const renderRainCharts = (rainData: RainEntity[]) => {
+        if (rainData.length === 0) return null
 
-    if (data.length === 0) {
+        const sampledData = rainData.length > 200
+            ? rainData.filter((_, i) => i % Math.ceil(rainData.length / 200) === 0)
+            : rainData
+
+        const isMultiDay = hasMultipleDays(sampledData as unknown as { fecha: Date; hora: string }[])
+        const timeLabels = formatTimeLabels(sampledData as unknown as { fecha: Date; hora: string }[])
+        const chartProps = getChartProps(sampledData.length, isMultiDay)
+
+        const convertRain = (val: number | null) => {
+            if (val === null) return null
+            return isMetric ? val : val / 25.4
+        }
+
+        const amounts = sampledData.map(d => convertRain(d.lluvia_mm))
+        const rainUnit = isMetric ? 'mm' : 'in'
+
         return (
-            <div className="flex flex-col items-center justify-center min-h-100 text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mb-4" />
-                <p>{t.charts.noData}</p>
+            <div className="space-y-5">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <CloudRain className="h-5 w-5 text-primary" />
+                    {t.charts.rain}
+                </h3>
+                <ChartCard title={t.charts.rainAmount} icon={CloudRain} subtitle={rainUnit}>
+                    <BarChart
+                        {...chartProps}
+                        height={320}
+                        xAxis={[{ scaleType: 'band', data: timeLabels, tickLabelStyle: isMultiDay ? { angle: -45, textAnchor: 'end' as const } : undefined }]}
+                        yAxis={[{ label: rainUnit, min: 0 }]}
+                        series={[
+                            { data: amounts, label: t.charts.rainAmount, color: chartColors.quaternary },
+                        ]}
+                    />
+                </ChartCard>
             </div>
         )
     }
 
-    // Get units from the first data point (CSV provides units)
-    const firstPoint = data[0]
-    const csvTempUnit = firstPoint.units.temp // "C" or "F"
-    const csvWindUnit = firstPoint.units.wind // "km/h" or "mph"
-    const csvBarUnit = firstPoint.units.bar   // "mm" (actually hPa) or "inHg"
-    const csvRainUnit = firstPoint.units.rain // "mm" or "in"
+    // Render pressure charts
+    const renderPressureCharts = (pressureData: PressureEntity[]) => {
+        if (pressureData.length === 0) return null
 
-    // Prepare data for charts - sample every nth point if too many
-    const sampledData = data.length > 96
-        ? data.filter((_, i) => i % Math.ceil(data.length / 96) === 0)
-        : data
+        const sampledData = pressureData.length > 200
+            ? pressureData.filter((_, i) => i % Math.ceil(pressureData.length / 200) === 0)
+            : pressureData
 
-    const timeLabels = sampledData.map(d => d.time)
+        const isMultiDay = hasMultipleDays(sampledData as unknown as { fecha: Date; hora: string }[])
+        const timeLabels = formatTimeLabels(sampledData as unknown as { fecha: Date; hora: string }[])
+        const chartProps = getChartProps(sampledData.length, isMultiDay)
 
-    // Temperature conversion (CSV is in Celsius, convert based on user preference)
-    const convertTemp = (temp: number | null): number | null => {
-        if (temp === null) return null
-        // CSV data is already in Celsius (from the file)
-        if (!isMetric) {
-            // Convert to Fahrenheit
-            return (temp * 9 / 5) + 32
+        const convertPressure = (val: number | null) => {
+            if (val === null) return null
+            return isMetric ? val : val / 33.8639
         }
-        return temp
+
+        const pressures = sampledData.map(d => convertPressure(d.presion_hpa))
+        const pressureUnit = isMetric ? 'hPa' : 'inHg'
+
+        return (
+            <div className="space-y-5">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Gauge className="h-5 w-5 text-primary" />
+                    {t.charts.barometer}
+                </h3>
+                <ChartCard title={t.charts.pressureChart} icon={Gauge} subtitle={pressureUnit}>
+                    <LineChart
+                        {...chartProps}
+                        height={320}
+                        xAxis={[{ ...chartProps.xAxis[0], data: timeLabels }]}
+                        yAxis={[{ label: pressureUnit }]}
+                        series={[
+                            { data: pressures, label: t.charts.pressure, color: chartColors.secondary, showMark: false, curve: 'catmullRom', area: true },
+                        ]}
+                    />
+                </ChartCard>
+            </div>
+        )
     }
 
-    // Speed conversion (CSV is in km/h, convert based on user preference)
-    const convertSpeed = (speed: number | null): number | null => {
-        if (speed === null) return null
-        // CSV data is already in km/h
-        if (!isMetric) {
-            // Convert to mph
-            return speed / 1.60934
+    // Render all charts based on selected views
+    const renderCharts = () => {
+        if (viewsData.size === 0 && !isLoading) {
+            return (
+                <Card className="border-muted bg-muted/20 mt-6">
+                    <CardContent className="flex flex-col items-center justify-center py-14 text-muted-foreground text-center">
+                        <AlertCircle className="h-10 w-10 mb-3 opacity-50" />
+                        <p className="font-medium">{t.charts.noData}</p>
+                    </CardContent>
+                </Card>
+            )
         }
-        return speed
-    }
 
-    // Pressure conversion (CSV appears to be in hPa/mbar)
-    const convertPressure = (pressure: number | null): number | null => {
-        if (pressure === null) return null
-        // CSV data is in hPa (mbar)
-        if (!isMetric) {
-            // Convert to inHg
-            return pressure / 33.8639
-        }
-        return pressure
-    }
+        return (
+            <div className="space-y-8 mt-6">
+                {selectedViews.map(view => {
+                    const viewData = viewsData.get(view)
+                    if (!viewData || viewData.data.length === 0) return null
 
-    // Rain conversion (CSV is in mm)
-    const convertRain = (rain: number | null): number | null => {
-        if (rain === null) return null
-        // CSV data is in mm
-        if (!isMetric) {
-            // Convert to inches
-            return rain / 25.4
-        }
-        return rain
-    }
-
-    // Chart data arrays with conversions
-    const outdoorTemps = sampledData.map(d => convertTemp(d.outdoor.temperature))
-    const indoorTemps = sampledData.map(d => convertTemp(d.indoor.temperature))
-    const outdoorHumidity = sampledData.map(d => d.outdoor.humidity)
-    const indoorHumidity = sampledData.map(d => d.indoor.humidity)
-    const windSpeeds = sampledData.map(d => convertSpeed(d.wind.speed))
-    const windGusts = sampledData.map(d => convertSpeed(d.wind.highSpeed))
-    const pressures = sampledData.map(d => convertPressure(d.barometer.pressure))
-    const rainRates = sampledData.map(d => convertRain(d.rain.rate))
-
-    // Display units based on user preference
-    const tempUnit = isMetric ? '°C' : '°F'
-    const speedUnit = isMetric ? 'km/h' : 'mph'
-    const pressureUnit = isMetric ? 'hPa' : 'inHg'
-    const rainUnit = isMetric ? 'mm' : 'in'
-
-    // Common chart props
-    const chartProps = {
-        height: 280,
-        margin: { top: 20, right: 20, bottom: 30, left: 60 },
-        sx: {
-            '& .MuiChartsLegend-label': { color: `${chartColors.text} !important` },
-            '& .MuiChartsAxisHighlight-root': { stroke: `${chartColors.text} !important` },
-            '& .MuiChartsAxis-line': { stroke: `${chartColors.text} !important` },
-            '& .MuiChartsAxis-tickContainer': { color: `${chartColors.text} !important` },
-            '& .MuiChartsAxis-tick': { stroke: `${chartColors.text} !important` },
-            '.MuiChartsAxis-tickLabel': { fill: chartColors.text },
-            '.MuiLineChart-mark': { fill: chartColors.grid },
-            '.MuiChartsAxis-line': { stroke: chartColors.grid },
-            '.MuiChartsAxis-tick': { stroke: chartColors.grid },
-            '.MuiChartsGrid-line': { stroke: chartColors.grid },
-        },
-        grid: { horizontal: true },
+                    switch (view) {
+                        case 'vw_temperatura':
+                            return <div key={view}>{renderTemperatureCharts(viewData.data as TemperatureEntity[])}</div>
+                        case 'vw_viento':
+                            return <div key={view}>{renderWindCharts(viewData.data as WindEntity[])}</div>
+                        case 'vw_lluvia':
+                            return <div key={view}>{renderRainCharts(viewData.data as RainEntity[])}</div>
+                        case 'vw_presion':
+                            return <div key={view}>{renderPressureCharts(viewData.data as PressureEntity[])}</div>
+                        default:
+                            return null
+                    }
+                })}
+            </div>
+        )
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-foreground">{t.charts.title}</h2>
-                <p className="text-muted-foreground mt-1">{t.charts.subtitle}</p>
-                {response.meta && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                        {t.charts.dateTime} : {response.meta.date}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                        {t.charts.title}
+                    </h2>
+                    <p className="text-muted-foreground mt-1">
+                        {t.charts.subtitle}
                     </p>
+                </div>
+                {fetchedAt && totalRecords > 0 && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary bg-primary/10 px-4 py-2 rounded-full whitespace-nowrap">
+                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        {totalRecords} {t.charts.records}
+                    </div>
                 )}
             </div>
 
-            {/* Temperature Chart */}
-            <ChartCard title={t.charts.temperatureChart} icon={Thermometer}>
-                <LineChart
-                    {...chartProps}
+            {/* Query Controls */}
+            <ChartQueryControls
+                selectedViews={selectedViews}
+                setSelectedViews={setSelectedViews}
+                mode={mode}
+                setMode={setMode}
+                specificDate={specificDate}
+                setSpecificDate={setSpecificDate}
+                dateStart={dateStart}
+                setDateStart={setDateStart}
+                dateEnd={dateEnd}
+                setDateEnd={setDateEnd}
+                days={days}
+                setDays={setDays}
+                onFetch={() => fetchAllData(true)}
+                onClearCache={handleClearCache}
+                isLoading={isLoading}
+                isCached={hasCachedData}
+            />
 
-                    height={280}
-                    xAxis={[{
-                        scaleType: 'point',
-                        data: timeLabels,
-                        tickLabelStyle: { fill: chartColors.text, fontSize: 10 },
-                    }]}
-                    yAxis={[{
-                        label: tempUnit,
-                        labelStyle: { fill: chartColors.text },
-                    }]}
-                    series={[
-                        {
-                            data: outdoorTemps,
-                            label: t.charts.outdoorTemp,
-                            color: chartColors.primary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                        {
-                            data: indoorTemps,
-                            label: t.charts.indoorTemp,
-                            color: chartColors.secondary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                    ]}
-                />
-            </ChartCard>
+            {/* Error state */}
+            {error && (
+                <Card className="border-destructive/50 bg-destructive/10">
+                    <CardContent className="flex flex-col items-center justify-center py-12 text-destructive text-center">
+                        <AlertCircle className="h-10 w-10 mb-3 opacity-80" />
+                        <p className="font-medium">{t.charts.error}</p>
+                        <p className="text-sm opacity-70 mt-1">{error}</p>
+                    </CardContent>
+                </Card>
+            )}
 
-            {/* Humidity Chart */}
-            <ChartCard title={t.charts.humidityChart} icon={Droplets}>
-                <LineChart
-                    {...chartProps}
-                    xAxis={[{
-                        scaleType: 'point',
-                        data: timeLabels,
-                        tickLabelStyle: { fill: chartColors.text, fontSize: 10 },
-                    }]}
-                    yAxis={[{
-                        label: '%',
-                        min: 0,
-                        max: 100,
-                        labelStyle: { fill: chartColors.text },
-                    }]}
-                    series={[
-                        {
-                            data: outdoorHumidity,
-                            label: t.charts.outdoorHumidity,
-                            color: chartColors.primary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                        {
-                            data: indoorHumidity,
-                            label: t.charts.indoorHumidity,
-                            color: chartColors.secondary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                    ]}
-                />
-            </ChartCard>
+            {/* Loading state */}
+            {isLoading && (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin mb-3" />
+                    <p>{t.charts.loading}</p>
+                </div>
+            )}
 
-            {/* Wind Chart */}
-            <ChartCard title={t.charts.windChart} icon={Wind}>
-                <LineChart
-                    {...chartProps}
-                    xAxis={[{
-                        scaleType: 'point',
-                        data: timeLabels,
-                        tickLabelStyle: { fill: chartColors.text, fontSize: 10 },
-                    }]}
-                    yAxis={[{
-                        label: speedUnit,
-                        min: 0,
-                        labelStyle: { fill: chartColors.text },
-                    }]}
-                    series={[
-                        {
-                            data: windSpeeds,
-                            label: t.charts.windSpeed,
-                            color: chartColors.primary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                        {
-                            data: windGusts,
-                            label: t.charts.windGust,
-                            color: chartColors.tertiary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                        },
-                    ]}
-                />
-            </ChartCard>
-
-            {/* Pressure Chart */}
-            <ChartCard title={t.charts.pressureChart} icon={Gauge}>
-                <LineChart
-                    {...chartProps}
-                    xAxis={[{
-                        scaleType: 'point',
-                        data: timeLabels,
-                        tickLabelStyle: { fill: chartColors.text, fontSize: 10 },
-                    }]}
-                    yAxis={[{
-                        label: pressureUnit,
-                        labelStyle: { fill: chartColors.text },
-                    }]}
-                    series={[
-                        {
-                            data: pressures,
-                            label: t.charts.pressure,
-                            color: chartColors.primary,
-                            showMark: false,
-                            curve: 'monotoneX',
-                            area: true,
-                        },
-                    ]}
-                />
-            </ChartCard>
-
-            {/* Rain Chart */}
-            <ChartCard title={t.charts.rainChart} icon={CloudRain}>
-                <LineChart
-                    {...chartProps}
-                    xAxis={[{
-                        scaleType: 'point',
-                        data: timeLabels,
-                        tickLabelStyle: { fill: chartColors.text, fontSize: 10 },
-                    }]}
-                    yAxis={[{
-                        label: rainUnit,
-                        min: 0,
-                        labelStyle: { fill: chartColors.text },
-                    }]}
-                    series={[
-                        {
-                            data: rainRates,
-                            label: t.charts.rainRate,
-                            color: chartColors.primary,
-                            showMark: false,
-                            curve: 'stepAfter',
-                            area: true,
-                        },
-                    ]}
-                />
-            </ChartCard>
+            {/* Charts */}
+            {!isLoading && !error && renderCharts()}
         </div>
     )
 }

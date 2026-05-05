@@ -1,4 +1,5 @@
 // Raw CSV row structure from the weather station API
+// Headers: Date,Time,Temp Units,Bar Units,Wind Units,Rain Units,Temp Out,Hi Temp,Low Temp,Rain,Rain Rate,BAR,Solar Rad.,In Temp,In Hum,Out Hum,Wind Speed,Hi Speed,Hi Dir,Wind Dir,UV Index,ET,Hi Solar Rad.,Hi UV
 export interface HistoricalCsvRow {
   Date: string           // "19:04:2026" (DD:MM:YYYY format)
   Time: string           // "00:15"
