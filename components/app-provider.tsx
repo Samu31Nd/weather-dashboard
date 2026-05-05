@@ -1,7 +1,8 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode, useMemo } from 'react'
 import { translations, type Language, type Translations } from '@/lib/language/translations'
+import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
 
 type View = 'dashboard' | 'charts'
 
@@ -36,13 +37,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // Collapsed by default on desktop
 
+    const muiTheme = useMemo(() =>
+        createTheme({
+            palette: {
+                mode: isDark ? 'dark' : 'light',
+                primary: { main: isDark ? '#818cf8' : '#4f46e5' },
+                background: {
+                    default: isDark ? '#0f1117' : '#f8fafc',
+                    paper: isDark ? '#1a1d2e' : '#ffffff',
+                },
+            },
+        }), [isDark])
+
     // Apply dark mode to document
     useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
+        document.documentElement.classList.toggle('dark', isDark)
     }, [isDark])
 
     // Update html lang attribute
@@ -70,7 +79,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 setSidebarCollapsed,
             }}
         >
-            {children}
+            <MuiThemeProvider theme={muiTheme}>
+                {children}
+            </MuiThemeProvider>
         </AppContext.Provider>
     )
 }

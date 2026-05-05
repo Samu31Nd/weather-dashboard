@@ -7,10 +7,10 @@ import { LineChart } from '@mui/x-charts/LineChart'
 import { BarChart } from '@mui/x-charts/BarChart'
 import { AlertCircle, Thermometer, Droplets, Wind, Gauge, CloudRain, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import type { HistoricalView, QueryMode, TemperatureEntity, WindEntity, RainEntity, PressureEntity } from '@/lib/domain/historical-weather.entity'
 import { getCachedData, setCachedData, clearAllCache, generateHistoricalCacheKey } from '@/lib/cache/cache'
 import { ChartQueryControls } from './chartQueryControls'
+import { useTheme } from '@mui/material/styles'
 
 interface ApiResponse<T> {
     total: number
@@ -60,18 +60,6 @@ function ChartCard({
                 </Box>
             </CardContent>
         </Card>
-    )
-}
-
-function ChartsLoadingSkeleton() {
-    return (
-        <div className="space-y-6 animate-pulse">
-            <Skeleton className="h-72 rounded-xl" />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <Skeleton className="h-80 rounded-xl" />
-                <Skeleton className="h-80 rounded-xl" />
-            </div>
-        </div>
     )
 }
 
@@ -212,14 +200,16 @@ export function HistoricalCharts() {
         fetchAllData()
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+    const theme = useTheme();
+
     // Chart styling
     const chartColors = {
-        primary: isDark ? '#818cf8' : '#4f46e5',
-        secondary: isDark ? '#34d399' : '#059669',
-        tertiary: isDark ? '#f472b6' : '#db2777',
-        quaternary: isDark ? '#60a5fa' : '#2563eb',
-        grid: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-        text: isDark ? '#a1a1aa' : '#52525b',
+        primary: theme.palette.primary.main,
+        secondary: theme.palette.success?.main ?? '#059669',
+        tertiary: theme.palette.error?.main ?? '#db2777',
+        quaternary: theme.palette.info?.main ?? '#2563eb',
+        grid: theme.palette.divider,
+        text: theme.palette.text.secondary,
     }
 
     // Check if data spans multiple days
@@ -253,22 +243,15 @@ export function HistoricalCharts() {
 
     // Chart base props with tick formatting for multi-day data
     const getChartProps = useCallback((dataLength: number, isMultiDay: boolean) => {
-        // Calculate tick interval to avoid label overlap
         const tickInterval = isMultiDay
-            ? Math.max(1, Math.floor(dataLength / 12)) // Show ~12 labels for multi-day
-            : Math.max(1, Math.floor(dataLength / 24)) // Show ~24 labels for single day
+            ? Math.max(1, Math.floor(dataLength / 12))
+            : Math.max(1, Math.floor(dataLength / 24))
 
         return {
             height: 280,
             margin: { top: 20, right: 20, bottom: isMultiDay ? 50 : 35, left: 55 },
+            // ✅ Solo overrides específicos, el resto lo maneja el tema
             sx: {
-                '& .MuiChartsLegend-label': { fill: `${chartColors.text} !important`, fontSize: 11 },
-                '& .MuiChartsAxis-line': { stroke: `${chartColors.grid} !important` },
-                '& .MuiChartsAxis-tickLabel': {
-                    fill: `${chartColors.text} !important`,
-                    fontSize: isMultiDay ? 9 : 10,
-                },
-                '& .MuiChartsGrid-line': { stroke: chartColors.grid, strokeDasharray: '3 3' },
                 '& .MuiLineElement-root': { strokeWidth: 2.5 },
                 '& .MuiAreaElement-root': { fillOpacity: isDark ? 0.12 : 0.08 },
             },

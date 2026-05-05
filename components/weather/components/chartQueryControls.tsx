@@ -117,7 +117,7 @@ export function ChartQueryControls({
             {/* Collapsible Content */}
             <div className={cn(
                 'overflow-hidden transition-all duration-300 ease-in-out',
-                isCollapsed ? 'max-h-0' : 'max-h-[800px]'
+                isCollapsed ? 'max-h-0' : 'max-h-200'
             )}>
                 <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 border-t border-border/50">
                     <div className="space-y-6 pt-4">
@@ -189,7 +189,7 @@ export function ChartQueryControls({
                                         className={cn(
                                             'w-full px-4 py-3 rounded-lg border bg-background text-foreground',
                                             'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
-                                            isDark && '[color-scheme:dark]'
+                                            isDark && 'scheme-dark'
                                         )}
                                     />
                                 </div>
@@ -209,7 +209,7 @@ export function ChartQueryControls({
                                             className={cn(
                                                 'w-full px-4 py-3 rounded-lg border bg-background text-foreground',
                                                 'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
-                                                isDark && '[color-scheme:dark]'
+                                                isDark && 'scheme-dark'
                                             )}
                                         />
                                     </div>
@@ -226,7 +226,7 @@ export function ChartQueryControls({
                                             className={cn(
                                                 'w-full px-4 py-3 rounded-lg border bg-background text-foreground',
                                                 'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
-                                                isDark && '[color-scheme:dark]'
+                                                isDark && 'scheme-dark'
                                             )}
                                         />
                                     </div>
