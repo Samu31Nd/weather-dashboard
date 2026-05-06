@@ -45,22 +45,28 @@ function ChartCard({
     subtitle?: string
 }) {
     return (
-        <Card className={`overflow-hidden border bg-card/60 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:bg-card/80 ${className || ''}`}>
-            <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-5 px-5">
-                <div className="rounded-xl bg-primary/10 p-2.5 shadow-sm">
-                    <Icon className="size-5 text-primary" />
-                </div>
-                <div>
-                    <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
-                    {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-                </div>
-            </CardHeader>
-            <CardContent className="px-2 pb-5 pt-1 sm:px-4">
-                <Box sx={{ width: '100%', height: 300 }}>
-                    {children}
-                </Box>
-            </CardContent>
-        </Card>
+        // <Card className={`border bg-card/60 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:bg-card/80 ${className || ''}`}>
+        //     <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-5 px-5">
+        //         <div className="rounded-xl bg-primary/10 p-2.5 shadow-sm">
+        //             <Icon className="size-5 text-primary" />
+        //         </div>
+        //         <div>
+        //             <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+        //             {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        //         </div>
+        //     </CardHeader>
+        //     <CardContent className="px-2 pb-5 pt-1 sm:px-4">
+        //     </CardContent>
+        // </Card>
+        <Box sx={{
+            width: '100%',
+            height: 300,
+            // Sin overflow hidden en el Box tampoco
+            position: 'relative',
+            zIndex: 0,
+        }}>
+            {children}
+        </Box>
     )
 }
 
