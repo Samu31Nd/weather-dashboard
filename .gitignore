@@ -20,3 +20,5 @@ mock/*
 
 GEMINI.md
 .env
+.vscode/
+package-lock.json
