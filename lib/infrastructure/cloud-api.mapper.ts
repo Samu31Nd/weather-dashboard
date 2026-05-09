@@ -31,12 +31,11 @@ export function mapTemperatureDto(dto: TemperatureDto): TemperatureEntity {
     id: dto.id,
     fecha: parseDate(dto.fecha),
     hora: dto.hora,
-    temperatura_exterior: parseNumber(dto.temperatura_exterior),
-    temperatura_interior: parseNumber(dto.temperatura_interior),
+    temperatura_exterior: parseNumber(dto.temp_exterior),
+    temperatura_interior: parseNumber(dto.temp_interior),
     humedad_exterior: parseNumber(dto.humedad_exterior),
     humedad_interior: parseNumber(dto.humedad_interior),
-    sensacion_termica: parseNumber(dto.sensacion_termica),
-    punto_rocio: parseNumber(dto.punto_rocio),
+    sensacion_termica: parseNumber(dto.temp_max),
   }
 }
 
@@ -58,8 +57,7 @@ export function mapRainDto(dto: RainDto): RainEntity {
     fecha: parseDate(dto.fecha),
     hora: dto.hora,
     lluvia_mm: parseNumber(dto.lluvia_mm),
-    tasa_lluvia: parseNumber(dto.tasa_lluvia),
-    lluvia_diaria: parseNumber(dto.lluvia_diaria),
+    tasa_lluvia: parseNumber(dto.tasa_mm_hr),
   }
 }
 
@@ -78,15 +76,15 @@ export function mapCleanWeatherDto(dto: CleanWeatherDto): CleanWeatherEntity {
     id: dto.id,
     fecha: parseDate(dto.fecha),
     hora: dto.hora,
-    temperatura_exterior: parseNumber(dto.temperatura_exterior),
-    temperatura_interior: parseNumber(dto.temperatura_interior),
-    humedad_exterior: parseNumber(dto.humedad_exterior),
-    humedad_interior: parseNumber(dto.humedad_interior),
-    velocidad_kmh: parseNumber(dto.velocidad_kmh),
-    rafaga_kmh: parseNumber(dto.rafaga_kmh),
-    direccion: dto.direccion,
-    presion_hpa: parseNumber(dto.presion_hpa),
-    lluvia_mm: parseNumber(dto.lluvia_mm),
-    tasa_lluvia: parseNumber(dto.tasa_lluvia),
+    temperatura_exterior: parseNumber(dto.temp_out),
+    temperatura_interior: parseNumber(dto.in_temp),
+    humedad_exterior: parseNumber(dto.out_hum_pct),
+    humedad_interior: parseNumber(dto.in_hum_pct),
+    velocidad_kmh: parseNumber(dto.wind_speed),
+    rafaga_kmh: parseNumber(dto.hi_speed),
+    direccion: dto.wind_dir,
+    presion_hpa: parseNumber(dto.bar),
+    lluvia_mm: parseNumber(dto.rain),
+    tasa_lluvia: parseNumber(dto.rain_rate),
   }
 }

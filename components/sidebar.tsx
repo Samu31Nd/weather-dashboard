@@ -68,10 +68,11 @@ export function Sidebar() {
           // Mobile: slide in/out
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           // Desktop: show/hide based on collapsed state
-          'lg:translate-x-0 lg:static lg:z-auto',
+          'lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto',
           sidebarCollapsed ? 'lg:hidden' : 'lg:flex',
           // Width
-          'w-72'
+          'w-72',
+          'lg:h-screen'
         )}
       >
         {/* Header */}

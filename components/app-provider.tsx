@@ -30,8 +30,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-    const [language, setLanguage] = useState<Language>('en')
-    const [isMetric, setIsMetric] = useState(false)
+    const [language, setLanguage] = useState<Language>('es')
+    const [isMetric, setIsMetric] = useState(true)
     const [isDark, setIsDark] = useState(true)
     const [currentView, setCurrentView] = useState<View>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -65,17 +65,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <AppContext.Provider
             value={{
                 language,
-                setLanguage,
                 t,
                 isMetric,
-                setIsMetric,
                 isDark,
-                setIsDark,
                 currentView,
-                setCurrentView,
                 sidebarOpen,
-                setSidebarOpen,
                 sidebarCollapsed,
+                // SETTERS
+                setLanguage,
+                setIsMetric,
+                setIsDark,
+                setCurrentView,
+                setSidebarOpen,
                 setSidebarCollapsed,
             }}
         >

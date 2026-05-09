@@ -153,7 +153,7 @@ export function HistoricalCharts() {
 
             return {
                 view,
-                data: result.data,
+                data: result.data.reverse(),
                 total: result.total,
                 isCached: false,
             }
@@ -246,7 +246,7 @@ export function HistoricalCharts() {
     // Initial fetch
     useEffect(() => {
         fetchAllData()
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [])
 
     const theme = useTheme();
 
@@ -339,36 +339,65 @@ export function HistoricalCharts() {
     const renderTemperatureCharts = (tempData: TemperatureEntity[]) => {
         if (tempData.length === 0) return null
 
+        console.log(tempData.at(0));
+
+        const convertTemp = (val: number | null) => {
+            if (val === null) return null
+            return isMetric ? val : (val * 9 / 5) + 32
+        }
+        //const tempUnit = isMetric ? '°C' : '°F'
+        const tempUnit = '°C'
+
         // Sample data if too many points
-        const sampledData = tempData.length > 200
-            ? tempData.filter((_, i) => i % Math.ceil(tempData.length / 200) === 0)
-            : tempData
+        const sampledData = tempData
 
         const isMultiDay = hasMultipleDays(sampledData as unknown as { fecha: Date; hora: string }[])
         const timeLabels = formatTimeLabels(sampledData as unknown as { fecha: Date; hora: string }[])
         const chartProps = getChartProps(sampledData.length, isMultiDay)
 
         // Only humidity data is available from the API
+        const outdoorTemp = sampledData.map(d => d.temperatura_exterior)
+        const indoorTemp = sampledData.map(d => d.temperatura_interior)
         const outdoorHum = sampledData.map(d => d.humedad_exterior)
         const indoorHum = sampledData.map(d => d.humedad_interior)
 
         return (
             <div className="space-y-5">
-                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Thermometer className="h-5 w-5 text-primary" />
-                    {t.charts.temperature}
-                </h3>
-                <ChartCard title={t.charts.humidityChart} icon={Droplets} subtitle="%">
-                    <LineChart
-                        {...chartProps}
-                        xAxis={[{ ...chartProps.xAxis[0], data: timeLabels }]}
-                        yAxis={[{ label: '%', min: 0, max: 100 }]}
-                        series={[
-                            { data: outdoorHum, label: t.charts.outdoorHumidity, color: chartColors.primary, showMark: false, curve: 'catmullRom', area: true },
-                            { data: indoorHum, label: t.charts.indoorHumidity, color: chartColors.secondary, showMark: false, curve: 'catmullRom' },
-                        ]}
-                    />
-                </ChartCard>
+                <div className='y-3'>
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Thermometer className="h-5 w-5 text-primary" />
+                        {t.cards.humidity}
+                    </h3>
+                    <ChartCard title={t.charts.humidityChart} icon={Droplets} subtitle="%">
+                        <LineChart
+                            {...chartProps}
+                            xAxis={[{ ...chartProps.xAxis[0], data: timeLabels }]}
+                            yAxis={[{ label: tempUnit }]}
+                            series={[
+                                { data: outdoorHum, label: t.charts.outdoorHumidity, color: chartColors.primary, showMark: false, curve: 'catmullRom', area: true },
+                                { data: indoorHum, label: t.charts.indoorHumidity, color: chartColors.secondary, showMark: false, curve: 'catmullRom' },
+                            ]}
+                        />
+                    </ChartCard>
+                </div>
+                <div className='y-3'>
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Thermometer className="h-5 w-5 text-primary" />
+                        {t.charts.temperature}
+                    </h3>
+
+                    <ChartCard title={t.charts.temperatureChart} icon={Thermometer} subtitle={tempUnit} className="xl:col-span-2">
+                        <LineChart
+                            {...chartProps}
+                            xAxis={[{ scaleType: 'point', data: timeLabels }]}
+                            yAxis={[{ label: tempUnit }]}
+                            series={[
+                                { data: outdoorTemp, label: t.charts.outdoorTemp, color: chartColors.primary, showMark: false, curve: 'catmullRom', area: true },
+                                { data: indoorTemp, label: t.charts.indoorTemp, color: chartColors.secondary, showMark: false, curve: 'catmullRom' },
+                            ]}
+                        />
+                    </ChartCard>
+                </div>
             </div>
         )
     }
@@ -420,6 +449,8 @@ export function HistoricalCharts() {
     const renderRainCharts = (rainData: RainEntity[]) => {
         if (rainData.length === 0) return null
 
+        console.table(rainData);
+
         const sampledData = rainData.length > 200
             ? rainData.filter((_, i) => i % Math.ceil(rainData.length / 200) === 0)
             : rainData
@@ -460,6 +491,8 @@ export function HistoricalCharts() {
     // Render pressure charts
     const renderPressureCharts = (pressureData: PressureEntity[]) => {
         if (pressureData.length === 0) return null
+
+        console.table(pressureData);
 
         const sampledData = pressureData.length > 200
             ? pressureData.filter((_, i) => i % Math.ceil(pressureData.length / 200) === 0)

@@ -166,7 +166,10 @@ export function ChartQueryControls({
             <Card className="border bg-card/50 backdrop-blur-md overflow-hidden">
                 {/* Header - Always visible */}
                 <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-secondary/30 transition-colors">
+                    <div
+                        role='button'
+                        tabIndex={0}
+                        className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-secondary/30 transition-colors">
                         <div className="flex items-center gap-3">
                             <div className="rounded-lg bg-primary/10 p-2">
                                 <Settings2 className="size-4 text-primary" />
@@ -236,7 +239,7 @@ export function ChartQueryControls({
                                 <ChevronDown className="size-5 text-muted-foreground" />
                             )}
                         </div>
-                    </button>
+                    </div>
                 </CollapsibleTrigger>
 
                 {/* Collapsible Content */}

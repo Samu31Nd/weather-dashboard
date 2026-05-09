@@ -31,7 +31,6 @@ export interface TemperatureEntity extends BaseHistoricalEntity {
   humedad_exterior: number | null
   humedad_interior: number | null
   sensacion_termica: number | null
-  punto_rocio: number | null
 }
 
 // Wind view entity
@@ -46,7 +45,6 @@ export interface WindEntity extends BaseHistoricalEntity {
 export interface RainEntity extends BaseHistoricalEntity {
   lluvia_mm: number | null
   tasa_lluvia: number | null
-  lluvia_diaria: number | null
 }
 
 // Pressure view entity
